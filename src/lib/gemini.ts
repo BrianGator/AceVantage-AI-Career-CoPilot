@@ -37,7 +37,7 @@ export async function generateInterviewAnswer(
     return getMockInterviewAnswer(question, profile);
   }
 
-  const model = "gemini-3.1-pro-preview";
+  const model = "gemini-1.5-pro";
   // ... rest of the existing code
   
   const recentTranscript = transcriptContext
@@ -58,7 +58,7 @@ export async function generateInterviewAnswer(
     ${recentTranscript}
     
     INSTRUCTIONS:
-    1. Provide a professional, concise, and structured answer.
+    1. Provide a professional and structured answer. Ensure the length directly matches the requested detail amount in the prompt (e.g. if medium detail is requested, fill a full screen worth of data; if more detail, be extremely thorough).
     2. Use the STAR method (Situation, Task, Action, Result) if applicable.
     3. Infuse relevant keywords from the candidate's skills and resume.
     4. If it's a coding question, provide code in the candidate's preferred language (defaulting to Java/Javascript if not specified).
@@ -86,14 +86,22 @@ export async function generateMockInterviewQuestion(profile: UserProfile, transc
     const questions = [
       `How would you handle a complex regression issue in a ${profile.targetRole} environment?`,
       `Tell me about a time you had to explain technical ${profile.skills[0] || 'logic'} to a non-technical stakeholder.`,
-      `What is your philosophy on documentation and code quality in high-velocity teams?`
+      `What is your philosophy on documentation and code quality in high-velocity teams?`,
+      `Can you describe a challenging project where you had to quickly learn a new technology?`,
+      `How do you prioritize your tasks when facing multiple tight deadlines?`
     ];
+    const asked = transcript.map((m) => m.text);
+    const available = questions.filter(q => !asked.includes(q));
+    if (available.length > 0) {
+      return available[Math.floor(Math.random() * available.length)];
+    }
     return questions[Math.floor(Math.random() * questions.length)];
   }
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-1.5-pro";
   const prompt = `You are a technical interviewer for ${profile.targetRole}. 
   Based on the candidate's skills (${profile.skills.join(', ')}) and resume (${profile.resumeText.substring(0, 500)}), 
   ask a challenging follow-up question based on the conversation history: ${JSON.stringify(transcript.slice(-5))}.
+  CRITICAL: DO NOT repeat any of your previous questions or previous topics found in the conversation history. Ask something entirely new and probing.
   Keep it professional and focused on the job requirements.`;
 
   try {
@@ -116,7 +124,7 @@ export async function generateResumeFeedback(profile: UserProfile) {
 4. Add a strong executive summary at the top.
 5. Ensure reverse-chronological order is strictly followed.`;
   }
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-1.5-pro";
   const prompt = `Analyze this resume for a ${profile.targetRole} position. 
   Resume: ${profile.resumeText}
   Provide 5 actionable improvements to make it stand out. Return in a simple list format.`;
@@ -137,7 +145,7 @@ export async function generateCoverLetter(profile: UserProfile, jobDescription: 
     await new Promise(r => setTimeout(r, 1200));
     return `Dear Hiring Manager,\n\nI am thrilled to apply for the ${profile.targetRole} position. With my background in ${profile.skills.join(', ')}, I am confident I can bring immediate value to your team. My experience aligns perfectly with your requirements for specialized growth and technical excellence.\n\nBest regards,\nCandidate`;
   }
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-1.5-pro";
   const prompt = `Write a professional cover letter for a ${profile.targetRole} position.
   Candidate Skills: ${profile.skills.join(', ')}
   Job Description: ${jobDescription}
@@ -189,6 +197,25 @@ export async function solveAssessmentQuestion(questionData: string, profile: Use
   }
 }
 
+export async function rewriteTextInput(text: string, type: "longer" | "better") {
+  if (isMockMode) {
+    await new Promise(r => setTimeout(r, 800));
+    return type === "longer" ? text + " Additionally, this ensures our workflows are highly scalable and robust against regression risks." : "To optimize this effectively, " + text;
+  }
+  const prompt = type === "longer" 
+    ? "Rewrite this strictly to be more detailed, longer and professional, but keep the core meaning. Do not include any prefix or conversational filler, just the rewritten text: " + text
+    : "Rewrite this strictly to be punchier, better, more professional, and concise. Do not include any prefix or conversational filler, just the rewritten text: " + text;
+  try {
+    const result = await ai.models.generateContent({
+      model: "gemini-1.5-pro",
+      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    });
+    return result.text || text;
+  } catch(e) {
+    return text;
+  }
+}
+
 export async function analysisPerformance(session: { transcript: Message[], answers: any[] }) {
   if (isMockMode) {
     return { 
@@ -197,7 +224,7 @@ export async function analysisPerformance(session: { transcript: Message[], answ
       areasForImprovement: ["Depth of Examples"] 
     };
   }
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-1.5-pro";
   
   const content = `
     Analyze this interview performance and provide feedback.

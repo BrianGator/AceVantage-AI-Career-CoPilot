@@ -41,6 +41,9 @@ import {
   X,
   Smartphone,
   Monitor,
+  CalendarHeart,
+  Volume2,
+  Globe,
 } from "lucide-react";
 import { parseDocument } from "./types.ts";
 
@@ -67,6 +70,7 @@ import {
   generateResumeFeedback,
   generateCoverLetter,
   solveAssessmentQuestion,
+  rewriteTextInput,
 } from "./lib/gemini.ts";
 import { AITools } from "./components/AITools";
 import { InterviewReports } from "./components/InterviewReports";
@@ -75,7 +79,10 @@ import { QuestionBank } from "./components/QuestionBank";
 import { AssessmentTab } from "./components/AssessmentTab";
 import { Home } from "./components/Home";
 import { JobApply } from "./components/JobApply";
+import { CareerCoach } from "./components/CareerCoach";
 import { ResumeOptimizer } from "./components/ResumeOptimizer";
+import { CoverLetter } from "./components/CoverLetter";
+import { WebTestSolver } from "./components/WebTestSolver";
 import { Auth } from "./components/Auth";
 import { Admin } from "./components/Admin";
 import { cn } from "./lib/utils";
@@ -117,29 +124,33 @@ export default function App() {
     | "tools"
     | "resume-optimizer"
     | "job-apply"
+    | "coach"
   >("home");
-  const [interviewProfiles, setInterviewProfiles] = useState<any[]>([
-    {
-      id: "1",
-      name: "2026 QA",
-      resumeText: "Experience with Java, Playwright...",
-      companyName: "2026 QA",
-      companyDescription: "Innovative QA platform",
-      position: "QA Engineer",
-      jobDescription: "Seeking experienced QA engineer for automation...",
-      createdAt: Date.now() - 86400000 * 5, // 5 days ago
-    },
-    {
-      id: "2",
-      name: "Ardent Mills",
-      resumeText: "Experience with Selenium...",
-      companyName: "Ardent Mills",
-      companyDescription: "Flour milling company",
-      position: "QA Automation Engineer",
-      jobDescription: "Build automation from scratch...",
-      createdAt: Date.now() - 86400000 * 30, // 1 month ago
-    },
-  ]);
+  const loadProfiles = () => {
+    try {
+      const saved = localStorage.getItem("interviewProfiles_v1");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      {
+        id: "1",
+        name: "Publix QA Engineer",
+        resumeText: "",
+        companyName: "Publix",
+        companyDescription: "Supermarket chain",
+        position: "QA Engineer",
+        jobDescription: "Software QA Job DescriptionAs a Quality Assurance (QA) Engineer at Publix, your responsibilities include:Test Strategy & Planning: Translating functional requirements, User stories, and release notes into actionable test scenarios and plans.Test Execution: Conducting extensive manual and automated testing, including functional, integration, regression, load, and performance testing.Automation: Designing and developing scalable automated test scripts for UI, API, and backend layers, integrating these into CI/CD pipelines.Defect Management: Tracking defects, performing root cause analysis, and coordinating with development teams for problem resolution and go/no-go decisions.Data Validation: Writing complex SQL queries to validate backend data flows and database integrity.Technologies & Tools UsedPublix QA engineers utilize an evolving stack of industry-standard tools:Test Management & Tracking: Azure DevOps, Jira, and TestRail.Automation Frameworks: Standard programming languages (e.g., C#, Java, Python) and industry-standard automation frameworks.Database & Data Querying: SQL, Microsoft Azure cloud databases.Integration & Architecture: API-driven, event-based, and messaging architectures (e.g., Kafka).Methodologies: Agile, CI/CD pipelines, Test-Driven Development (TDD).",
+        createdAt: Date.now(),
+      },
+    ];
+  };
+
+  const [interviewProfiles, setInterviewProfiles] = useState<any[]>(loadProfiles);
+
+  useEffect(() => {
+    localStorage.setItem("interviewProfiles_v1", JSON.stringify(interviewProfiles));
+  }, [interviewProfiles]);
+
   const [selectedProfileId, setSelectedProfileId] = useState<string>("1");
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [newProfile, setNewProfile] = useState({
@@ -193,15 +204,35 @@ export default function App() {
   const [assessmentInput, setAssessmentInput] = useState("");
   const [assessmentResult, setAssessmentResult] = useState("");
   const [isSolving, setIsSolving] = useState(false);
+  const [mockInput, setMockInput] = useState("");
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const answersEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
+  const playAudio = (text: string) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  };
+
   const autoAnswerRef = useRef(autoAnswer);
   useEffect(() => {
     autoAnswerRef.current = autoAnswer;
   }, [autoAnswer]);
+
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    const mockSpeechHandler = (e: any) => {
+      setMockInput((prev) => prev + (prev.length > 0 ? " " : "") + e.detail);
+    };
+    window.addEventListener("mock-speech-event", mockSpeechHandler);
+    return () => window.removeEventListener("mock-speech-event", mockSpeechHandler);
+  }, []);
 
   const activeProfile =
     interviewProfiles.find((p) => p.id === selectedProfileId) ||
@@ -224,6 +255,13 @@ export default function App() {
         const text = lastResult[0].transcript.trim();
 
         if (lastResult.isFinal) {
+          if (activeTabRef.current === "mock") {
+             window.dispatchEvent(
+                new CustomEvent("mock-speech-event", { detail: text }),
+             );
+             return;
+          }
+
           // Detect speaker (simple heuristic: if it's a question, it might be interviewer)
           const isQuestion =
             text.includes("?") ||
@@ -289,8 +327,8 @@ export default function App() {
 
   const answeredQuestionsRef = useRef<Set<string>>(new Set());
 
-  const handleAutoAnswer = async (question: string) => {
-    if (answeredQuestionsRef.current.has(question)) return;
+  const handleAutoAnswer = async (question: string, force: boolean = false, modifiers: string = "") => {
+    if (!force && answeredQuestionsRef.current.has(question)) return;
     answeredQuestionsRef.current.add(question);
     
     setIsGenerating(true);
@@ -304,7 +342,7 @@ export default function App() {
       };
 
       const answerText = await generateInterviewAnswer(
-        question + `\n\nProvide ${detailLevel} amount of detail.`,
+        question + `\n\nProvide ${detailLevel} amount of detail.` + (modifiers ? `\n\n${modifiers}` : ""),
         tempProfile,
         transcript,
       );
@@ -317,6 +355,9 @@ export default function App() {
         tags: [aiModel],
       };
       setAnswers((prev) => {
+        if (force) {
+           return [...prev.filter(a => a.questionText !== question), newAnswer];
+        }
         if (prev.some(a => a.questionText === question)) return prev;
         return [...prev, newAnswer];
       });
@@ -325,19 +366,71 @@ export default function App() {
     }
   };
 
-  const answerLastQuestion = () => {
+  const answerLastQuestion = (force: boolean = false, modifiers: string = "") => {
     const lastInterviewerMsg = [...transcript]
       .reverse()
       .find((m) => m.speaker === "interviewer");
     if (lastInterviewerMsg) {
-      handleAutoAnswer(lastInterviewerMsg.text);
+      handleAutoAnswer(lastInterviewerMsg.text, force, modifiers);
     }
   };
+
+  const aiModelRef = useRef(aiModel);
+  useEffect(() => {
+    if (aiModelRef.current !== aiModel && transcript.length > 0) {
+      aiModelRef.current = aiModel;
+      
+      if (activeTab === "live") {
+        answerLastQuestion(true);
+      } else if (activeTab === "mock") {
+        regenerateMockResponse();
+      }
+    }
+  }, [aiModel, activeTab, transcript]);
+
+  const regenerateMockResponse = async (modifiers: string = "") => {
+    const targetProfile = { ...profile };
+    if (selectedProfileId === "new") {
+      targetProfile.targetRole = newProfile.position;
+      targetProfile.resumeText = newProfile.resumeText;
+    } else {
+      targetProfile.targetRole = activeProfile.position;
+      targetProfile.resumeText = activeProfile.resumeText;
+    }
+    setIsGenerating(true);
+    
+    // remove the last interviewer response so we can regenerate it
+    const updatedTranscript = [...transcript];
+    if (updatedTranscript[updatedTranscript.length - 1]?.speaker === "interviewer") {
+        updatedTranscript.pop();
+    }
+    
+    const nextQ = await generateMockInterviewQuestion(targetProfile, updatedTranscript);
+    setTranscript((prev) => {
+      const p = [...prev];
+      if (p[p.length - 1]?.speaker === "interviewer") {
+          p.pop();
+      }
+      return [...p, { id: Date.now().toString(), speaker: "interviewer", text: nextQ + (modifiers ? `\n\n[Applied: ${modifiers}]` : ""), timestamp: Date.now() }];
+    });
+    setIsGenerating(false);
+  };
+
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualQuestion.trim()) return;
-    handleAutoAnswer(manualQuestion);
+    
+    // Add manual question to transcript so it can be re-evaluated
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      speaker: "interviewer",
+      text: manualQuestion,
+      timestamp: Date.now(),
+    };
+    setTranscript((prev) => [...prev, newMessage]);
+
+    handleAutoAnswer(manualQuestion, true);
     setManualQuestion("");
   };
 
@@ -416,7 +509,16 @@ export default function App() {
   const startMockInterview = async () => {
     setIsMockActive(true);
     setIsGenerating(true);
-    const firstQ = await generateMockInterviewQuestion(profile, []);
+    let targetProfile = { ...profile };
+    if (selectedProfileId === "new") {
+      targetProfile.targetRole = newProfile.position;
+      targetProfile.resumeText = newProfile.resumeText;
+    } else {
+      targetProfile.targetRole = activeProfile.position;
+      targetProfile.resumeText = activeProfile.resumeText;
+    }
+
+    const firstQ = await generateMockInterviewQuestion(targetProfile, []);
     setTranscript([
       {
         id: "start",
@@ -426,6 +528,33 @@ export default function App() {
       },
     ]);
     setMockQuestion(firstQ);
+    setIsGenerating(false);
+  };
+
+  const handleMockSubmit = async () => {
+    if (!mockInput.trim()) return;
+    const answerText = mockInput;
+    setMockInput("");
+    if (isRecording) toggleRecording();
+    
+    const newMsg: Message = { id: Date.now().toString(), speaker: "me", text: answerText, timestamp: Date.now() };
+    setTranscript((prev) => [...prev, newMsg]);
+
+    let targetProfile = { ...profile };
+    if (selectedProfileId === "new") {
+      targetProfile.targetRole = newProfile.position;
+      targetProfile.resumeText = newProfile.resumeText;
+    } else {
+      targetProfile.targetRole = activeProfile.position;
+      targetProfile.resumeText = activeProfile.resumeText;
+    }
+
+    setIsGenerating(true);
+    const nextQ = await generateMockInterviewQuestion(targetProfile, [...transcript, newMsg]);
+    setTranscript((prev) => [
+      ...prev,
+      { id: (Date.now() + 1).toString(), speaker: "interviewer", text: nextQ, timestamp: Date.now() },
+    ]);
     setIsGenerating(false);
   };
 
@@ -460,19 +589,30 @@ export default function App() {
           )}
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
           {[
             { id: "home", icon: LayoutDashboard, label: "Home" },
+            { id: "coach", icon: CalendarHeart, label: "AI Career Coach" },
             { id: "live", icon: BrainCircuit, label: "AI Interview Copilot" },
-            { id: "mock", icon: GraduationCap, label: "AI Mock" },
+            { id: "mock", icon: GraduationCap, label: "AI Mock Interview" },
             {
               id: "resume-optimizer",
               icon: FileText,
               label: "AI Resume Optimizer",
             },
+            {
+              id: "cover-letter",
+              icon: FileText,
+              label: "AI Cover Letter",
+            },
             { id: "job-apply", icon: Send, label: "AI Job Apply" },
             { id: "profiles", icon: User, label: "Interview Profiles" },
-            { id: "assessment", icon: Terminal, label: "Web Test" },
+            {
+              id: "web-test-solver",
+              icon: Globe,
+              label: "AI Web Test Solver",
+            },
+            { id: "assessment", icon: Terminal, label: "Interview Skills Tests" },
             { id: "question-bank", icon: BookOpen, label: "Question Bank" },
             { id: "knowledge-base", icon: Layers, label: "Knowledge Base" },
             { id: "reports", icon: BarChart3, label: "Interview Reports" },
@@ -1079,12 +1219,24 @@ export default function App() {
                               </span>
                             ))}
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleAutoAnswer(answer.questionText, true, "Make the answer longer by filling the screen with more data and specific details.")}
+                              className="text-[10px] text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded px-2 py-0.5 transition-colors"
+                            >
+                              Add More Details
+                            </button>
+                            <button
+                              onClick={() => handleAutoAnswer(answer.questionText, true, "Make the answer sound more professional and better.")}
+                              className="text-[10px] text-neutral-400 hover:text-white border border-neutral-700 hover:border-neutral-500 rounded px-2 py-0.5 transition-colors"
+                            >
+                              Make Better
+                            </button>
                             <button
                               onClick={() =>
                                 navigator.clipboard.writeText(answer.answerText)
                               }
-                              className="text-neutral-500 hover:text-blue-400 transition-colors"
+                              className="text-neutral-500 hover:text-blue-400 transition-colors ml-2"
                               title="Copy to Clipboard"
                             >
                               <Save size={14} />
@@ -1144,6 +1296,11 @@ export default function App() {
                         <Send size={18} />
                       </button>
                     </form>
+                    <div className="mt-2 flex items-center justify-between">
+                      <button type="button" onClick={() => answerLastQuestion(true)} className="glass-button text-xs py-1.5 px-4 font-bold border-blue-500/50 text-blue-400 hover:bg-blue-500/10">
+                        Answer Now
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1404,15 +1561,125 @@ export default function App() {
                         Ace your next meeting
                       </h2>
                       <p className="text-neutral-400">
-                        Start a mock interview tailored to your profile. The AI
-                        will ask questions and provide real-time feedback.
+                        Start a mock interview tailored to your profile.
                       </p>
-                      
-                      <label className="glass-button w-full h-12 flex items-center justify-center cursor-pointer text-sm font-bold bg-neutral-900 mb-2">
-                        <FileText size={16} className="mr-2" /> Upload Target Resume
-                        <input type="file" accept=".pdf,.docx,text/plain" onChange={(e) => { handleResumeUpload(e); alert("Resume processed and saved for Mock Interview."); }} className="hidden" />
-                      </label>
-                      {profile.resumeText && <p className="text-[10px] text-green-400 truncate mt-1">Resume uploaded successfully.</p>}
+
+                      <div className="text-left space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-xs text-neutral-500 font-bold uppercase pl-1">Select Past Job</label>
+                          <select
+                            value={selectedProfileId}
+                            onChange={(e) => setSelectedProfileId(e.target.value)}
+                            className="input-field w-full text-xs truncate"
+                          >
+                            {interviewProfiles.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.position} at {p.companyName}
+                              </option>
+                            ))}
+                            <option value="new">+ Create New</option>
+                          </select>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <label className="text-xs text-neutral-500 font-bold uppercase pl-1">Job Title</label>
+                          <input 
+                            type="text" 
+                            className="input-field w-full text-sm" 
+                            value={selectedProfileId === "new" ? newProfile.position : activeProfile.position}
+                            onChange={(e) => {
+                              if (selectedProfileId === "new") {
+                                setNewProfile({ ...newProfile, position: e.target.value });
+                              } else {
+                                const newProfiles = interviewProfiles.map(p => p.id === activeProfile.id ? { ...p, position: e.target.value } : p);
+                                setInterviewProfiles(newProfiles);
+                              }
+                            }}
+                            placeholder="e.g. QA Engineer"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs text-neutral-500 font-bold uppercase pl-1">Company Name</label>
+                          <input 
+                            type="text" 
+                            className="input-field w-full text-sm" 
+                            value={selectedProfileId === "new" ? newProfile.companyName : activeProfile.companyName}
+                            onChange={(e) => {
+                              if (selectedProfileId === "new") {
+                                setNewProfile({ ...newProfile, companyName: e.target.value });
+                              } else {
+                                const newProfiles = interviewProfiles.map(p => p.id === activeProfile.id ? { ...p, companyName: e.target.value } : p);
+                                setInterviewProfiles(newProfiles);
+                              }
+                            }}
+                            placeholder="e.g. Publix"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs text-neutral-500 font-bold uppercase pl-1">Job Description</label>
+                          <textarea 
+                            className="input-field w-full text-sm h-24 resize-none" 
+                            value={selectedProfileId === "new" ? newProfile.jobDescription : activeProfile.jobDescription}
+                            onChange={(e) => {
+                              if (selectedProfileId === "new") {
+                                setNewProfile({ ...newProfile, jobDescription: e.target.value });
+                              } else {
+                                const newProfiles = interviewProfiles.map(p => p.id === activeProfile.id ? { ...p, jobDescription: e.target.value } : p);
+                                setInterviewProfiles(newProfiles);
+                              }
+                            }}
+                            placeholder="Paste job description here..."
+                          />
+                        </div>
+                        
+                        <label className="glass-button w-full h-12 flex items-center justify-center cursor-pointer text-sm font-bold bg-neutral-900 mb-2">
+                          <FileText size={16} className="mr-2" /> Upload Target Resume
+                          <input type="file" accept=".pdf,.docx,text/plain" onChange={async (e) => { 
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              try {
+                                const text = await parseDocument(file);
+                                if (selectedProfileId === "new") {
+                                  setNewProfile({ ...newProfile, resumeText: text });
+                                } else {
+                                  const newProfiles = interviewProfiles.map(p => p.id === activeProfile.id ? { ...p, resumeText: text } : p);
+                                  setInterviewProfiles(newProfiles);
+                                }
+                                alert("Resume processed and saved for Mock Interview.");
+                              } catch(err) {}
+                            }
+                          }} className="hidden" />
+                        </label>
+                        {((selectedProfileId === "new" ? newProfile.resumeText : activeProfile.resumeText) || profile.resumeText) && <p className="text-[10px] text-green-400 truncate mt-1">Resume uploaded successfully.</p>}
+                        
+                        {selectedProfileId === "new" && (
+                          <button
+                            onClick={() => {
+                              const p = {
+                                ...newProfile,
+                                id: Date.now().toString(),
+                                name: `${newProfile.position} at ${newProfile.companyName}`,
+                                createdAt: Date.now(),
+                              };
+                              setInterviewProfiles([...interviewProfiles, p]);
+                              setSelectedProfileId(p.id);
+                              setNewProfile({
+                                name: "",
+                                resumeText: "",
+                                companyName: "",
+                                companyDescription: "",
+                                position: "",
+                                jobDescription: "",
+                              });
+                            }}
+                            className="glass-button w-full h-10 text-sm mb-4"
+                          >
+                            Save New Profile
+                          </button>
+                        )}
+                      </div>
 
                       <button
                         onClick={startMockInterview}
@@ -1429,23 +1696,33 @@ export default function App() {
                             <div
                               key={msg.id}
                               className={cn(
-                                "p-4 rounded-2xl max-w-[80%]",
+                                "p-4 rounded-2xl max-w-[80%] relative group",
                                 msg.speaker === "interviewer"
                                   ? "bg-neutral-800 self-start"
                                   : "bg-blue-600 self-end ml-auto",
                               )}
                             >
                               <p className="text-sm">{msg.text}</p>
+                              {msg.speaker === "interviewer" && (
+                                <button 
+                                  onClick={() => playAudio(msg.text)} 
+                                  className="absolute -right-10 top-2 opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-neutral-800 text-neutral-400 hover:text-white rounded-full border border-neutral-700"
+                                  title="Play Audio"
+                                >
+                                  <Volume2 size={16} />
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>
                         <div className="p-4 border-t border-neutral-800">
                           <div className="flex gap-2">
                             <button
+                               onClick={toggleRecording}
                               className={cn(
                                 "glass-button px-6",
                                 isRecording
-                                  ? "bg-red-600/20 text-red-400 border-red-500/50"
+                                  ? "bg-red-600/20 text-red-400 border-red-500/50 animate-pulse"
                                   : "bg-blue-600/20 text-blue-400 border-blue-500/50",
                               )}
                             >
@@ -1458,11 +1735,44 @@ export default function App() {
                                 ? "Stop Speaking"
                                 : "Answer Verbally"}
                             </button>
-                            <input
-                              placeholder="Type your response..."
-                              className="input-field flex-1"
-                            />
-                            <button className="primary-button h-10 w-10 p-0">
+                            <div className="flex-1 flex flex-col gap-1">
+                              <input
+                                value={mockInput}
+                                onChange={(e) => setMockInput(e.target.value)}
+                                placeholder="Type or speak your response..."
+                                className="input-field w-full"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleMockSubmit();
+                                }}
+                              />
+                              {mockInput.trim() && (
+                                <div className="flex gap-2 px-1">
+                                  <button onClick={async () => {
+                                      setIsGenerating(true)
+                                      try { 
+                                          const res = await rewriteTextInput(mockInput, "longer"); 
+                                          setMockInput(res);
+                                      } catch(e) {
+                                          setMockInput(prev => prev + " Also, I've consistently delivered measurable results in this area.");
+                                      } finally { setIsGenerating(false) } 
+                                  }} className="text-[10px] text-blue-400 hover:text-blue-300">Make Longer</button>
+                                  <button onClick={async () => {
+                                      setIsGenerating(true)
+                                      try { 
+                                          const res = await rewriteTextInput(mockInput, "better"); 
+                                          setMockInput(res);
+                                      } catch(e) {
+                                          setMockInput(prev => "In a professional context, " + prev);
+                                      } finally { setIsGenerating(false) } 
+                                  }} className="text-[10px] text-purple-400 hover:text-purple-300">Make Better</button>
+                                </div>
+                              )}
+                            </div>
+                            <button 
+                              onClick={handleMockSubmit}
+                              disabled={!mockInput.trim() || isGenerating}
+                              className="primary-button h-10 w-10 p-0 disabled:opacity-50"
+                            >
                               <Send size={18} />
                             </button>
                           </div>
@@ -1581,6 +1891,7 @@ export default function App() {
           {activeTab === "home" && (
             <Home setActiveTab={setActiveTab} currentUser={currentUser} handleResumeUpload={handleResumeUpload} />
           )}
+          {activeTab === "coach" && <CareerCoach />}
           {activeTab === "assessment" && (
             <AssessmentTab
               profile={profile}
@@ -1592,6 +1903,8 @@ export default function App() {
           {activeTab === "knowledge-base" && <KnowledgeBase />}
           {activeTab === "question-bank" && <QuestionBank />}
           {activeTab === "resume-optimizer" && <ResumeOptimizer />}
+          {activeTab === "cover-letter" && <CoverLetter />}
+          {activeTab === "web-test-solver" && <WebTestSolver />}
           {activeTab === "job-apply" && <JobApply />}
         </main>
       </div>

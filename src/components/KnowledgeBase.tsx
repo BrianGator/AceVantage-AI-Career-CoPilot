@@ -10,12 +10,15 @@ export const KnowledgeBase = () => {
             Teach your copilot what only you know
           </h2>
           <p className="text-neutral-400">
-            Add behavioral stories, company research, or interview notes. Verve
+            Add behavioral stories, company research, or interview notes. AceVantage
             pulls from them live so answers sound like you.
           </p>
         </div>
 
-        <div className="border-2 border-dashed border-neutral-700 bg-neutral-900/50 rounded-3xl p-12 text-center hover:border-blue-500 hover:bg-neutral-800 transition-all cursor-pointer group">
+        <div 
+          className="border-2 border-dashed border-neutral-700 bg-neutral-900/50 rounded-3xl p-12 text-center hover:border-blue-500 hover:bg-neutral-800 transition-all cursor-pointer group"
+          onClick={() => document.getElementById("kb-file-upload")?.click()}
+        >
           <div className="h-20 w-20 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto mb-6 text-blue-500 group-hover:scale-110 transition-transform">
             <Upload size={32} />
           </div>
@@ -25,6 +28,7 @@ export const KnowledgeBase = () => {
           </p>
           <button className="primary-button px-8 h-12">Browse Files</button>
           <input
+            id="kb-file-upload"
             type="file"
             className="hidden"
             accept=".pdf,.txt,.docx,.md"

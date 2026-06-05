@@ -34,7 +34,7 @@ export const Home = ({
             <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center cursor-pointer">
               <div>
                 <h3 className="text-2xl font-bold text-white mb-2">
-                  Land your dream job with Verve AI
+                  Land your dream job with AceVantage
                 </h3>
                 <p className="text-neutral-400 mb-6">
                   Follow our 3-step playbook: upload your resume, run a mock,
