@@ -37,6 +37,10 @@ import {
   PenTool,
   FileCheck,
   Layers,
+  Camera,
+  X,
+  Smartphone,
+  Monitor,
 } from "lucide-react";
 import { parsePdf } from "./types.ts";
 
@@ -70,6 +74,8 @@ import { KnowledgeBase } from "./components/KnowledgeBase";
 import { QuestionBank } from "./components/QuestionBank";
 import { AssessmentTab } from "./components/AssessmentTab";
 import { Home } from "./components/Home";
+import { JobApply } from "./components/JobApply";
+import { ResumeOptimizer } from "./components/ResumeOptimizer";
 import { Auth } from "./components/Auth";
 import { Admin } from "./components/Admin";
 import { cn } from "./lib/utils";
@@ -89,6 +95,8 @@ export default function App() {
     | "knowledge-base"
     | "reports"
     | "tools"
+    | "resume-optimizer"
+    | "job-apply"
   >("home");
   const [interviewProfiles, setInterviewProfiles] = useState<any[]>([
     {
@@ -145,6 +153,12 @@ export default function App() {
   const [manualQuestion, setManualQuestion] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiModel, setAiModel] = useState<AIModel>("gemini");
+  const [deviceType, setDeviceType] = useState<"pc" | "phone">("pc");
+  const [meetingApp, setMeetingApp] = useState<
+    "zoom" | "teams" | "meet" | "skype" | "other"
+  >("zoom");
+  const [isScreenDataModalOpen, setIsScreenDataModalOpen] = useState(false);
+  const [screenDataInput, setScreenDataInput] = useState("");
   const [opacity, setOpacity] = useState(100);
   const [isStealth, setIsStealth] = useState(false);
 
@@ -420,6 +434,12 @@ export default function App() {
             { id: "home", icon: LayoutDashboard, label: "Home" },
             { id: "live", icon: BrainCircuit, label: "AI Interview Copilot" },
             { id: "mock", icon: GraduationCap, label: "AI Mock" },
+            {
+              id: "resume-optimizer",
+              icon: FileText,
+              label: "AI Resume Optimizer",
+            },
+            { id: "job-apply", icon: Send, label: "AI Job Apply" },
             { id: "profiles", icon: User, label: "Interview Profiles" },
             { id: "assessment", icon: Terminal, label: "Web Test" },
             { id: "question-bank", icon: BookOpen, label: "Question Bank" },
@@ -524,10 +544,67 @@ export default function App() {
 
         <main className="flex-1 overflow-hidden">
           {activeTab === "live" && (
-            <div className="flex h-full w-full">
+            <div
+              className={cn(
+                "flex h-full w-full",
+                deviceType === "phone" ? "flex-col" : "flex-row",
+              )}
+            >
               {/* Left Sidebar: Controls */}
-              <aside className="w-64 border-r border-neutral-800 p-4 shrink-0 overflow-y-auto">
-                <div className="space-y-6">
+              <aside
+                className={cn(
+                  "border-neutral-800 p-4 shrink-0 overflow-y-auto",
+                  deviceType === "pc"
+                    ? "w-64 border-r"
+                    : "w-full border-b flex gap-4 overflow-x-auto",
+                )}
+              >
+                <div
+                  className={cn(
+                    deviceType === "pc"
+                      ? "space-y-6"
+                      : "flex gap-6 min-w-max items-start",
+                  )}
+                >
+                  <section>
+                    <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                      Device & App
+                    </label>
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        onClick={() => setDeviceType("pc")}
+                        className={cn(
+                          "glass-button text-[10px] flex-1",
+                          deviceType === "pc" &&
+                            "border-blue-500 text-blue-400 bg-blue-500/10",
+                        )}
+                      >
+                        PC Window
+                      </button>
+                      <button
+                        onClick={() => setDeviceType("phone")}
+                        className={cn(
+                          "glass-button text-[10px] flex-1",
+                          deviceType === "phone" &&
+                            "border-blue-500 text-blue-400 bg-blue-500/10",
+                        )}
+                      >
+                        Phone
+                      </button>
+                    </div>
+                    <select
+                      value={meetingApp}
+                      onChange={(e) => setMeetingApp(e.target.value as any)}
+                      className="input-field w-full text-xs"
+                    >
+                      <option value="zoom">Zoom</option>
+                      <option value="teams">Microsoft Teams</option>
+                      <option value="meet">Google Meet</option>
+                      <option value="skype">Skype</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </section>
+
                   <section>
                     <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-neutral-500">
                       Audio Source
@@ -726,7 +803,16 @@ export default function App() {
                       {isRecording ? "STOP LISTENING" : "START RECORDING"}
                     </button>
                     <p className="text-center text-[10px] text-neutral-600 italic">
-                      Captures system audio & microphone
+                      {meetingApp === "zoom" &&
+                        "Optimized for Zoom audio (Speaker/Mic)"}
+                      {meetingApp === "teams" &&
+                        "Optimized for Teams audio & screen sharing"}
+                      {meetingApp === "meet" &&
+                        "Optimized for Google Meet (Tab Audio)"}
+                      {meetingApp === "skype" &&
+                        "Optimized for Skype call audio"}
+                      {meetingApp === "other" &&
+                        "Captures system audio & microphone"}
                     </p>
                   </section>
 
@@ -750,11 +836,18 @@ export default function App() {
               </aside>
 
               {/* Split Panels */}
-              <div className="flex flex-1 overflow-hidden">
+              <div
+                className={cn(
+                  "flex flex-1 overflow-hidden",
+                  deviceType === "phone" ? "flex-col" : "flex-row",
+                )}
+              >
                 {/* Left Panel: Transcription */}
                 <div
                   className={cn(
-                    "flex flex-1 flex-col border-r border-neutral-800 transition-all",
+                    "flex flex-1 flex-col transition-all",
+                    deviceType === "pc" && "border-r border-neutral-800",
+                    deviceType === "phone" && "border-b border-neutral-800",
                     isStealth && "bg-white text-neutral-900 border-neutral-200",
                   )}
                 >
@@ -861,9 +954,18 @@ export default function App() {
                         ? "Suggested_Bullet_Points.md"
                         : "Copilot Responses"}
                     </span>
-                    {isGenerating && (
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
-                    )}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setIsScreenDataModalOpen(true)}
+                        className="glass-button text-[10px] px-2 py-1"
+                      >
+                        <Camera size={12} className="mr-1 inline" /> Analyze
+                        Screen
+                      </button>
+                      {isGenerating && (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
+                      )}
+                    </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-6">
                     {answers.map((answer) => (
@@ -1338,6 +1440,87 @@ export default function App() {
             </div>
           )}
 
+          {isScreenDataModalOpen && activeTab === "live" && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-lg rounded-3xl bg-neutral-900 border border-neutral-800 shadow-2xl p-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold">Screen Data Analysis</h3>
+                  <button
+                    onClick={() => setIsScreenDataModalOpen(false)}
+                    className="text-neutral-500 hover:text-white"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <p className="text-xs text-neutral-400 mb-4">
+                  Upload a screenshot or paste code/data the interviewer is
+                  asking about. We will analyze the image or text and generate a
+                  solution.
+                </p>
+
+                <textarea
+                  value={screenDataInput}
+                  onChange={(e) => setScreenDataInput(e.target.value)}
+                  className="input-field w-full h-32 text-sm font-mono leading-relaxed mb-4"
+                  placeholder="Paste code snippet, SQL tables, error logs, etc."
+                />
+
+                <div className="flex gap-4">
+                  <label className="flex-1 glass-button flex items-center justify-center cursor-pointer">
+                    <Download size={16} className="mr-2 inline" /> Upload
+                    Screenshot
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) {
+                          setIsGenerating(true);
+                          setIsScreenDataModalOpen(false);
+                          setTimeout(() => {
+                            setAnswers((prev) => [
+                              ...prev,
+                              {
+                                id: Date.now().toString(),
+                                question: "Analyzed screen data for answer.",
+                                text: "Based on the image provided: The expected output is 25. The snippet processes the list and squares each item.",
+                                confidence: 90,
+                              },
+                            ]);
+                            setIsGenerating(false);
+                          }, 2000);
+                        }
+                      }}
+                    />
+                  </label>
+                  <button
+                    onClick={() => {
+                      setIsGenerating(true);
+                      setIsScreenDataModalOpen(false);
+                      setTimeout(() => {
+                        setAnswers((prev) => [
+                          ...prev,
+                          {
+                            id: Date.now().toString(),
+                            question: "Analyzed pasted screen code.",
+                            text: "Here is the corrected code based on your pasted snippet:\n```javascript\nfunction fixError() {\n  return db.query('SELECT * FROM users');\n}\n```",
+                            confidence: 95,
+                          },
+                        ]);
+                        setScreenDataInput("");
+                        setIsGenerating(false);
+                      }, 1500);
+                    }}
+                    className="flex-1 primary-button disabled:opacity-50"
+                    disabled={!screenDataInput}
+                  >
+                    Analyze Text
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === "home" && (
             <Home setActiveTab={setActiveTab} currentUser={currentUser} />
           )}
@@ -1351,6 +1534,8 @@ export default function App() {
           {activeTab === "reports" && <InterviewReports />}
           {activeTab === "knowledge-base" && <KnowledgeBase />}
           {activeTab === "question-bank" && <QuestionBank />}
+          {activeTab === "resume-optimizer" && <ResumeOptimizer />}
+          {activeTab === "job-apply" && <JobApply />}
         </main>
       </div>
 
