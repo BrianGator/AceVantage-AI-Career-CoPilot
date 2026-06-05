@@ -2,6 +2,7 @@
   "name": "acevantage-ai-career-copilot",
   "private": true,
   "version": "0.0.0",
+  "homepage": "https://briangator.github.io/AceVantage-AI-Career-CoPilot/",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
