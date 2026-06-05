@@ -8,6 +8,15 @@ const ai = new GoogleGenAI({ apiKey: isMockMode ? 'MOCK_KEY' : API_KEY });
 
 // --- Mock Response Generators ---
 function getMockInterviewAnswer(question: string, profile: UserProfile) {
+  const questionLower = question.toLowerCase();
+  if (questionLower.includes("selenium") && questionLower.includes("playwright")) {
+      return "Selenium is a mature tool that uses the WebDriver protocol, which adds communication overhead but supports all legacy browsers. Playwright uses a direct WebSocket connection, making it faster and automatically resolving wait states. I evaluate project needs: Playwright for modern dynamic apps, Selenium for strict legacy browser compatibility.";
+  }
+  
+  if (!questionLower.includes("experience") && !questionLower.includes("time") && !questionLower.includes("you") && (questionLower.includes("difference") || questionLower.includes("what is") || questionLower.includes("how does") || questionLower.includes("explain"))) {
+      return `From a technical standpoint, this involves comparing the trade-offs of the available components. The optimal solution prioritizes maintainability and minimizes latency within the given constraints.`;
+  }
+
   const skills = profile.skills.length > 0 ? profile.skills.slice(0, 2).join(' and ') : 'technical skills';
   return `Based on my experience as a ${profile.targetRole}, I would approach this by leveraging my background in ${skills}. In my previous roles, I focused on high-quality delivery and ${question.toLowerCase().includes('team') ? 'collaborative problem solving' : 'optimized workflow design'}. Specifically, I ensure that architecture follows best practices like scalability and maintainability.`;
 }

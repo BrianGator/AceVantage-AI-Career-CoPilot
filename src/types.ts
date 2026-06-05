@@ -1,22 +1,32 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import mammoth from 'mammoth';
 
 // Configure worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
-export async function parsePdf(file: File): Promise<string> {
+export async function parseDocument(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let text = '';
-  
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const strings = content.items.map((item: any) => item.str);
-    text += strings.join(' ') + '\n';
+
+  if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let text = '';
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const strings = content.items.map((item: any) => item.str);
+        text += strings.join(' ') + '\n';
+    }
+    return text;
+  } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx')) {
+      const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+      return result.value;
   }
   
-  return text;
+  // fallback for plain text
+  return await file.text();
 }
+
 export type Message = {
   id: string;
   speaker: 'interviewer' | 'me' | 'system';

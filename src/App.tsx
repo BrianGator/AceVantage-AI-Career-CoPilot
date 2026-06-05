@@ -42,7 +42,7 @@ import {
   Smartphone,
   Monitor,
 } from "lucide-react";
-import { parsePdf } from "./types.ts";
+import { parseDocument } from "./types.ts";
 
 const MOCK_ANALYTICS_DATA = [
   { name: "S1", readiness: 45, technical: 40, clarity: 50 },
@@ -81,8 +81,28 @@ import { Admin } from "./components/Admin";
 import { cn } from "./lib/utils";
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem("currentUser");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem("currentUser", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("currentUser");
+    }
+  }, [currentUser]);
+
   const [isRecording, setIsRecording] = useState(false);
+  const isRecordingRef = useRef(isRecording);
+  useEffect(() => {
+     isRecordingRef.current = isRecording;
+  }, [isRecording]);
   const [transcript, setTranscript] = useState<Message[]>([]);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [activeTab, setActiveTab] = useState<
@@ -230,7 +250,13 @@ export default function App() {
       };
 
       recognition.onend = () => {
-        if (isRecording) recognition.start();
+        if (isRecordingRef.current) {
+            try {
+                recognition.start();
+            } catch (e) {
+                // Ignore if it's already started
+            }
+        }
       };
 
       recognitionRef.current = recognition;
@@ -261,9 +287,12 @@ export default function App() {
 
   const toggleRecording = () => setIsRecording(!isRecording);
 
+  const answeredQuestionsRef = useRef<Set<string>>(new Set());
+
   const handleAutoAnswer = async (question: string) => {
-    if (transcript.find((m) => m.text === question) === undefined) {
-    } // Prevent unused warning
+    if (answeredQuestionsRef.current.has(question)) return;
+    answeredQuestionsRef.current.add(question);
+    
     setIsGenerating(true);
     try {
       // Create a temporary UserProfile based on InterviewProfile
@@ -287,7 +316,10 @@ export default function App() {
         timestamp: Date.now(),
         tags: [aiModel],
       };
-      setAnswers((prev) => [...prev, newAnswer]);
+      setAnswers((prev) => {
+        if (prev.some(a => a.questionText === question)) return prev;
+        return [...prev, newAnswer];
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -372,12 +404,11 @@ export default function App() {
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.type === "application/pdf") {
-        const text = await parsePdf(file);
+      try {
+        const text = await parseDocument(file);
         setProfile({ ...profile, resumeText: text });
-      } else {
-        const text = await file.text();
-        setProfile({ ...profile, resumeText: text });
+      } catch (err) {
+        console.error("Failed to parse document", err);
       }
     }
   };
@@ -623,6 +654,17 @@ export default function App() {
                         <option>No Microphones Found</option>
                       )}
                     </select>
+                  </section>
+                  
+                  <section>
+                    <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                      Context / Resume
+                    </label>
+                    <label className="glass-button text-[10px] w-full flex items-center justify-center cursor-pointer p-2">
+                      Upload Resume
+                      <input type="file" accept=".pdf,.docx,text/plain" onChange={(e) => { handleResumeUpload(e); alert("Resume processed and saved for Copilot."); }} className="hidden" />
+                    </label>
+                    {profile.resumeText && <p className="text-[10px] text-green-400 mt-2 truncate">Resume loaded.</p>}
                   </section>
 
                   <section>
@@ -1135,7 +1177,11 @@ export default function App() {
                         selectedProfileId === p.id &&
                           "ring-2 ring-blue-500 border-transparent shadow-lg shadow-blue-500/10",
                       )}
-                      onClick={() => setSelectedProfileId(p.id)}
+                      onClick={() => {
+                        setSelectedProfileId(p.id);
+                        setNewProfile(p);
+                        setShowProfileModal(true);
+                      }}
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className="h-12 w-12 rounded-xl bg-blue-600/20 text-blue-400 flex flex-col items-center justify-center font-bold">
@@ -1271,16 +1317,15 @@ export default function App() {
                               onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                  let text = "";
-                                  if (file.type === "application/pdf") {
-                                    text = await parsePdf(file);
-                                  } else {
-                                    text = await file.text();
+                                  try {
+                                    const text = await parseDocument(file);
+                                    setNewProfile({
+                                      ...newProfile,
+                                      resumeText: text,
+                                    });
+                                  } catch (err) {
+                                     console.error("Failed to parse document", err);
                                   }
-                                  setNewProfile({
-                                    ...newProfile,
-                                    resumeText: text,
-                                  });
                                 }
                               }}
                             />
@@ -1309,13 +1354,18 @@ export default function App() {
                       </button>
                       <button
                         onClick={() => {
-                          const p = {
-                            ...newProfile,
-                            id: Date.now().toString(),
-                            createdAt: Date.now(),
-                          };
-                          setInterviewProfiles([...interviewProfiles, p]);
-                          setSelectedProfileId(p.id);
+                          if ((newProfile as any).id) {
+                            setInterviewProfiles(prev => prev.map(p => p.id === (newProfile as any).id ? { ...newProfile } : p));
+                            setSelectedProfileId((newProfile as any).id);
+                          } else {
+                            const p = {
+                              ...newProfile,
+                              id: Date.now().toString(),
+                              createdAt: Date.now(),
+                            };
+                            setInterviewProfiles([...interviewProfiles, p]);
+                            setSelectedProfileId(p.id);
+                          }
                           setShowProfileModal(false);
                           setNewProfile({
                             name: "",
@@ -1328,7 +1378,7 @@ export default function App() {
                         }}
                         className="primary-button px-8"
                       >
-                        Create Profile
+                        {(newProfile as any).id ? "Save Changes" : "Create Profile"}
                       </button>
                     </div>
                   </div>
@@ -1357,9 +1407,16 @@ export default function App() {
                         Start a mock interview tailored to your profile. The AI
                         will ask questions and provide real-time feedback.
                       </p>
+                      
+                      <label className="glass-button w-full h-12 flex items-center justify-center cursor-pointer text-sm font-bold bg-neutral-900 mb-2">
+                        <FileText size={16} className="mr-2" /> Upload Target Resume
+                        <input type="file" accept=".pdf,.docx,text/plain" onChange={(e) => { handleResumeUpload(e); alert("Resume processed and saved for Mock Interview."); }} className="hidden" />
+                      </label>
+                      {profile.resumeText && <p className="text-[10px] text-green-400 truncate mt-1">Resume uploaded successfully.</p>}
+
                       <button
                         onClick={startMockInterview}
-                        className="primary-button w-full h-14 text-lg"
+                        className="primary-button w-full h-14 text-lg mt-4"
                       >
                         START MOCK INTERVIEW
                       </button>
@@ -1522,7 +1579,7 @@ export default function App() {
           )}
 
           {activeTab === "home" && (
-            <Home setActiveTab={setActiveTab} currentUser={currentUser} />
+            <Home setActiveTab={setActiveTab} currentUser={currentUser} handleResumeUpload={handleResumeUpload} />
           )}
           {activeTab === "assessment" && (
             <AssessmentTab

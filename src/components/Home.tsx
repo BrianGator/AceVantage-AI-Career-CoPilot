@@ -16,9 +16,11 @@ import { cn } from "../lib/utils";
 export const Home = ({
   setActiveTab,
   currentUser,
+  handleResumeUpload,
 }: {
   setActiveTab: (tab: any) => void;
   currentUser?: any;
+  handleResumeUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) => {
   return (
     <div className="h-full w-full p-8 overflow-y-auto">
@@ -43,12 +45,13 @@ export const Home = ({
                 </button>
               </div>
               <div className="space-y-3">
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-4 text-sm font-medium">
+                <label className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-4 text-sm font-medium cursor-pointer hover:bg-white/10 transition-colors">
                   <div className="w-6 h-6 rounded-full bg-white text-black flex items-center justify-center text-xs font-bold shrink-0">
                     1
                   </div>
                   Upload resume
-                </div>
+                  <input type="file" accept=".pdf,.docx,text/plain" onChange={(e) => { handleResumeUpload(e); alert("Resume processed and saved for Copilot / Mock."); }} className="hidden" />
+                </label>
                 <div
                   className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-4 text-sm font-medium cursor-pointer hover:bg-white/10 transition-colors"
                   onClick={() => setActiveTab("mock")}
